@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Verification Failed</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-[#050510] text-white flex items-center justify-center h-screen font-sans">
+    <div class="glass p-12 rounded-3xl shadow-2xl text-center max-w-md border border-red-500/30">
+        <div class="text-6xl mb-6">⛔</div>
+        <h1 class="text-3xl font-bold mb-4 text-red-400">Verification Blocked</h1>
+        <p class="text-gray-400 mb-8">{{ REASON }}</p>
+        <a href="discord://" class="bg-gray-700 hover:bg-gray-600 px-8 py-3 rounded-xl font-bold transition">Return to Discord</a>
+    </div>
+</body>
+</html>
