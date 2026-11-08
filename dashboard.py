@@ -137,31 +137,30 @@ async def save_settings(request: Request, guild_id: str, verified_role: str = Fo
 # ==========================================
 # AUTOMATIC WEB VERIFICATION ROUTE
 # ==========================================
-
 @app.get("/verify/{guild_id}", response_class=HTMLResponse)
 async def verify_page(request: Request, guild_id: str, session: str = None, user: str = None):
     try:
-        # 1. Grab IP address
+        # 1. Get IP
         ip_result = ipware.get_client_ip(request)
         ip = ip_result[0] if ip_result else "Unknown_IP"
         
-        # 2. If we have a session ID and user ID from the Discord link
-        if session and user and verified_users is not None and verification_sessions is not None:
+        # 2. If we have the session and user, process it
+        if session and user and verified_users is not None:
             
-            # Check if this IP is used by another user (Alt detection)
+            # Check for alt IPs
             existing_alt = verified_users.find_one({"guild_id": guild_id, "ip": ip})
-            if existing_alt and existing_alt["user_id"] != user:
+            if existing_alt and existing_alt.get("user_id") != user:
                 return render_template("verify_failed.html", {"REASON": "Your IP address matches another verified account. Please contact staff."})
             
-            # Save to verified_users (for IP tracking)
+            # Save to verified_users
             verified_users.update_one(
                 {"guild_id": guild_id, "user_id": user},
                 {"$set": {"ip": ip, "verified": True}},
                 upsert=True
             )
             
-            # Save to verification_sessions (for the bot's polling task)
-            verification_sessions.update_one(
+            # Save to verification_sessions (The Bot will see this!)
+            db["verification_sessions"].update_one(
                 {"_id": session},
                 {"$set": {"verified": True, "ip": ip, "user_id": user, "guild_id": guild_id}},
                 upsert=True
