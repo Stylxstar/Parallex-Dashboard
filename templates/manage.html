@@ -2,35 +2,31 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Manage {{ guild_name }}</title>
+    <title>Manage {{ GUILD_NAME }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
     <nav class="bg-gray-800 p-4 shadow-md flex justify-between items-center">
         <a href="/dashboard" class="text-indigo-400 hover:text-indigo-300">&larr; Back to Servers</a>
-        <h1 class="font-bold text-xl">{{ guild_name }} Settings</h1>
+        <h1 class="font-bold text-xl">{{ GUILD_NAME }} Settings</h1>
         <a href="/logout" class="text-red-400 hover:text-red-300">Logout</a>
     </nav>
 
     <div class="container mx-auto p-8 max-w-2xl">
         <div class="bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-700">
             <h2 class="text-2xl font-bold mb-6 text-indigo-400">Verify System Configuration</h2>
-            
-            {% if request.query_params.get('saved') %}
-            <div class="bg-green-500 text-white p-3 rounded mb-6">Settings saved successfully!</div>
-            {% endif %}
 
-            <form method="POST" action="/manage/{{ guild_id }}" class="space-y-6">
+            <form method="POST" action="/manage/{{ GUILD_ID }}" class="space-y-6">
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-400 mb-2">Verified Role ID</label>
-                    <input type="text" name="verified_role" value="{{ config.get('verified_role_id', '') }}" placeholder="e.g. 123456789012345678" 
+                    <input type="text" name="verified_role" value="{{ VERIFIED_ROLE }}" placeholder="e.g. 123456789012345678" 
                         class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white focus:outline-none focus:border-indigo-500">
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-400 mb-2">Log Channel ID</label>
-                    <input type="text" name="log_channel" value="{{ config.get('log_channel_id', '') }}" placeholder="e.g. 123456789012345678" 
+                    <input type="text" name="log_channel" value="{{ LOG_CHANNEL }}" placeholder="e.g. 123456789012345678" 
                         class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white focus:outline-none focus:border-indigo-500">
                 </div>
 
