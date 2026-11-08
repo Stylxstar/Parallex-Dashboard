@@ -101,8 +101,8 @@ async def verify_page(request: Request, guild_id: str, session: str = None, user
     
     if not session:
         debug_msg = "[DEBUG: NO SESSION FOUND IN URL]"
-    elif not verification_sessions:
-        debug_msg = "[DEBUG: MONGO NOT CONNECTED]"
+    elif verification_sessions is None: # <-- FIXED THE MONGO CHECK HERE
+        debug_msg = f"[DEBUG: MONGO NOT CONNECTED. URI is {MONGO_URI[:15]}...]"
     else:
         try:
             verification_sessions.update_one(
@@ -110,12 +110,11 @@ async def verify_page(request: Request, guild_id: str, session: str = None, user
                 {"$set": {"verified": True, "user_id": str(user), "guild_id": str(guild_id)}},
                 upsert=True
             )
-            debug_msg = f"[DEBUG: SUCCESSFULLY SAVED SESSION {session} TO DATABASE]"
+            debug_msg = f"[DEBUG: SUCCESSFULLY SAVED SESSION TO DATABASE]"
             print(f"✅ Website saved session {session} to MongoDB!")
         except Exception as e:
             debug_msg = f"[DEBUG: DATABASE ERROR: {e}]"
             
-    # Inject the debug message into the HTML page
     base_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(base_dir, "templates", "verify_success.html")
     with open(file_path, "r", encoding="utf-8") as f:
