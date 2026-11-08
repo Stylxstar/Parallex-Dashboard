@@ -4,11 +4,9 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from pymongo import MongoClient
-from fastapi_ipware import IpWare
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="super-secret-parallex-key-change-me")
-ipware = IpWare()
 
 CLIENT_ID = os.getenv("CLIENT_ID", "YOUR_CLIENT_ID_HERE")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET", "YOUR_CLIENT_SECRET_HERE")
@@ -20,12 +18,10 @@ if MONGO_URI:
     client = MongoClient(MONGO_URI)
     db = client["parallex"]
     verify_config = db["verify_config"]
-    verified_users = db["verified_users"]
     verification_sessions = db["verification_sessions"]
 else:
     print("WARNING: No MONGO_URI found.")
     verify_config = None
-    verified_users = None
     verification_sessions = None
 
 def render_template(filename: str, context: dict):
@@ -135,34 +131,16 @@ async def save_settings(request: Request, guild_id: str, verified_role: str = Fo
     return RedirectResponse(f"/manage/{guild_id}?saved=true", status_code=303)
 
 # ==========================================
-# AUTOMATIC WEB VERIFICATION ROUTE
+# WEB VERIFICATION ROUTE (PURE API STYLE)
 # ==========================================
 @app.get("/verify/{guild_id}", response_class=HTMLResponse)
 async def verify_page(request: Request, guild_id: str, session: str = None, user: str = None):
     try:
-        # 1. Get IP
-        ip_result = ipware.get_client_ip(request)
-        ip = ip_result[0] if ip_result else "Unknown_IP"
-        
-        # 2. If we have the session and user, process it
-        if session and user and verified_users is not None:
-            
-            # Check for alt IPs (using str comparison to avoid integer/string mismatch)
-            existing_alt = verified_users.find_one({"guild_id": guild_id, "ip": ip})
-            if existing_alt and str(existing_alt.get("user_id")) != str(user):
-                return render_template("verify_failed.html", {"REASON": "Your IP address matches another verified account. Please contact staff."})
-            
-            # Save to verified_users
-            verified_users.update_one(
-                {"guild_id": guild_id, "user_id": str(user)},
-                {"$set": {"ip": ip, "verified": True}},
-                upsert=True
-            )
-            
-            # Save to verification_sessions (The Bot will see this!)
-            db["verification_sessions"].update_one(
+        if session and user and verification_sessions is not None:
+            # Instantly set verified to True. The bot will see this within 2 seconds.
+            verification_sessions.update_one(
                 {"_id": session},
-                {"$set": {"verified": True, "ip": ip, "user_id": str(user), "guild_id": guild_id}},
+                {"$set": {"verified": True, "user_id": str(user), "guild_id": str(guild_id)}},
                 upsert=True
             )
             
@@ -170,7 +148,7 @@ async def verify_page(request: Request, guild_id: str, session: str = None, user
         
     except Exception as e:
         print(f"Verification Error: {e}")
-        return HTMLResponse(f"An internal error occurred: {e}", status_code=500)
+        return HTMLResponse(f"An internal error occurred. Please tell staff. Error: {e}", status_code=500)
 
 @app.get("/logout")
 async def logout(request: Request):
