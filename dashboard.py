@@ -4,22 +4,18 @@ import httpx
 from pathlib import Path
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 app = FastAPI()
-# Change this secret in the future to something random
 app.add_middleware(SessionMiddleware, secret_key="super-secret-parallex-key-change-me")
-templates = Jinja2Templates(directory="templates")
 
-# --- CONFIGURATION (WE WILL FILL THIS LATER ON RENDER) ---
 CLIENT_ID = os.getenv("CLIENT_ID", "YOUR_CLIENT_ID_HERE")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET", "YOUR_CLIENT_SECRET_HERE")
 REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/callback")
 
 DISCORD_API_BASE = "https://discord.com/api/v10"
 
-# --- DATABASE (For local testing) ---
+# Data paths
 DATA_DIR = Path("data")
 CONFIG_PATH = DATA_DIR / "verify_config.json"
 
@@ -32,6 +28,19 @@ def save_db(data):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
+# Custom HTML Reader (Bypasses Jinja2 completely)
+def render_template(filename: str, context: dict):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(base_dir, "templates", filename)
+    with open(file_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    
+    # Simple string replacement for variables
+    for key, value in context.items():
+        if isinstance(value, str):
+            html = html.replace(f"{{{{ {key} }}}}", value)
+    return HTMLResponse(html)
+
 # ==========================================
 # ROUTES
 # ==========================================
@@ -39,7 +48,10 @@ def save_db(data):
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     user = request.session.get("user")
-    return templates.TemplateResponse("index.html", {"request": request, "user": user})
+    # If logged in, show dashboard link, else show login link
+    login_html = '<a href="/dashboard" class="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-lg font-semibold transition">Go to Dashboard</a>' if user else '<a href="/login" class="bg-indigo-500 hover:bg-indigo-600 px-6 py-3 rounded-lg font-semibold transition">Login with Discord</a>'
+    
+    return render_template("index.html", {"LOGIN_BUTTON": login_html})
 
 @app.get("/login")
 async def login():
@@ -74,7 +86,23 @@ async def callback(request: Request, code: str):
 async def dashboard(request: Request):
     user = request.session.get("user")
     if not user: return RedirectResponse("/")
-    return templates.TemplateResponse("dashboard.html", {"request": request, "user": user})
+    
+    # Build the server cards
+    cards = ""
+    for guild in user["guilds"]:
+        cards += f'''
+        <div class="bg-gray-800 p-6 rounded-xl shadow-lg flex items-center gap-4 hover:bg-gray-700 transition border border-gray-700">
+            <div class="w-12 h-12 bg-indigo-500 rounded-full flex items-center justify-center font-bold text-xl">
+                {guild['name'][0]}
+            </div>
+            <div>
+                <h3 class="font-bold">{guild['name']}</h3>
+                <a href="/manage/{guild['id']}" class="text-sm text-indigo-400 hover:text-indigo-300">Manage Verify System &rarr;</a>
+            </div>
+        </div>
+        '''
+    
+    return render_template("dashboard.html", {"USERNAME": user['username'], "SERVER_CARDS": cards})
 
 @app.get("/manage/{guild_id}", response_class=HTMLResponse)
 async def manage_server(request: Request, guild_id: str):
@@ -85,8 +113,11 @@ async def manage_server(request: Request, guild_id: str):
     db = load_db()
     config = db.get(guild_id, {})
     
-    return templates.TemplateResponse("manage.html", {
-        "request": request, "user": user, "guild_name": guild_name, "config": config, "guild_id": guild_id
+    return render_template("manage.html", {
+        "GUILD_NAME": guild_name, 
+        "GUILD_ID": guild_id,
+        "VERIFIED_ROLE": str(config.get('verified_role_id', '')),
+        "LOG_CHANNEL": str(config.get('log_channel_id', ''))
     })
 
 @app.post("/manage/{guild_id}")
