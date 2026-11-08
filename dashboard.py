@@ -18,7 +18,7 @@ if MONGO_URI:
     client = MongoClient(MONGO_URI)
     db = client["parallex"]
     verify_config = db["verify_config"]
-    verification_sessions = db["verification_sessions"]
+    verification_sessions = db["verification_sessions"] # <-- THIS MUST MATCH THE BOT
 else:
     print("WARNING: No MONGO_URI found.")
     verify_config = None
@@ -131,24 +131,25 @@ async def save_settings(request: Request, guild_id: str, verified_role: str = Fo
     return RedirectResponse(f"/manage/{guild_id}?saved=true", status_code=303)
 
 # ==========================================
-# WEB VERIFICATION ROUTE (PURE API STYLE)
+# WEB VERIFICATION ROUTE
 # ==========================================
 @app.get("/verify/{guild_id}", response_class=HTMLResponse)
 async def verify_page(request: Request, guild_id: str, session: str = None, user: str = None):
     try:
         if session and user and verification_sessions is not None:
-            # Instantly set verified to True. The bot will see this within 2 seconds.
+            # FORCE STRING TYPE so bot reads it perfectly
             verification_sessions.update_one(
-                {"_id": session},
+                {"_id": str(session)},
                 {"$set": {"verified": True, "user_id": str(user), "guild_id": str(guild_id)}},
                 upsert=True
             )
+            print(f"✅ Database Updated for Session: {session} User: {user}")
             
         return render_template("verify_success.html", {"GUILD_NAME": "the server"})
         
     except Exception as e:
         print(f"Verification Error: {e}")
-        return HTMLResponse(f"An internal error occurred. Please tell staff. Error: {e}", status_code=500)
+        return HTMLResponse(f"An internal error occurred: {e}", status_code=500)
 
 @app.get("/logout")
 async def logout(request: Request):
