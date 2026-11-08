@@ -91,15 +91,15 @@ async def dashboard(request: Request):
     cards = ""
     for guild in user["guilds"]:
         cards += f'''
-        <div class="bg-gray-800 p-6 rounded-xl shadow-lg flex items-center gap-4 hover:bg-gray-700 transition border border-gray-700">
-            <div class="w-12 h-12 bg-indigo-500 rounded-full flex items-center justify-center font-bold text-xl">
+        <a href="/manage/{guild['id']}" class="glass p-6 rounded-2xl flex items-center gap-5 hover:bg-white/10 hover:-translate-y-1 transition duration-300 group cursor-pointer border-t border-t-white/10">
+            <div class="w-16 h-16 bg-gradient-to-br from-indigo-500/40 to-purple-500/40 rounded-xl flex items-center justify-center font-bold text-2xl group-hover:scale-110 transition">
                 {guild['name'][0]}
             </div>
-            <div>
-                <h3 class="font-bold">{guild['name']}</h3>
-                <a href="/manage/{guild['id']}" class="text-sm text-indigo-400 hover:text-indigo-300">Manage Verify System &rarr;</a>
+            <div class="flex-1">
+                <h3 class="font-bold text-lg text-white mb-1 group-hover:text-indigo-300 transition">{guild['name']}</h3>
+                <p class="text-sm text-gray-400 flex items-center gap-1">Manage Settings <span class="group-hover:translate-x-1 transition">&rarr;</span></p>
             </div>
-        </div>
+        </a>
         '''
     
     return render_template("dashboard.html", {"USERNAME": user['username'], "SERVER_CARDS": cards})
