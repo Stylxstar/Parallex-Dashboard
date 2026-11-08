@@ -21,7 +21,7 @@ if MONGO_URI:
     db = client["parallex"]
     verify_config = db["verify_config"]
     verified_users = db["verified_users"]
-    verification_sessions = db["verification_sessions"] # NEW: Session collection
+    verification_sessions = db["verification_sessions"]
 else:
     print("WARNING: No MONGO_URI found.")
     verify_config = None
@@ -147,14 +147,14 @@ async def verify_page(request: Request, guild_id: str, session: str = None, user
         # 2. If we have the session and user, process it
         if session and user and verified_users is not None:
             
-            # Check for alt IPs
+            # Check for alt IPs (using str comparison to avoid integer/string mismatch)
             existing_alt = verified_users.find_one({"guild_id": guild_id, "ip": ip})
-            if existing_alt and existing_alt.get("user_id") != user:
+            if existing_alt and str(existing_alt.get("user_id")) != str(user):
                 return render_template("verify_failed.html", {"REASON": "Your IP address matches another verified account. Please contact staff."})
             
             # Save to verified_users
             verified_users.update_one(
-                {"guild_id": guild_id, "user_id": user},
+                {"guild_id": guild_id, "user_id": str(user)},
                 {"$set": {"ip": ip, "verified": True}},
                 upsert=True
             )
@@ -162,7 +162,7 @@ async def verify_page(request: Request, guild_id: str, session: str = None, user
             # Save to verification_sessions (The Bot will see this!)
             db["verification_sessions"].update_one(
                 {"_id": session},
-                {"$set": {"verified": True, "ip": ip, "user_id": user, "guild_id": guild_id}},
+                {"$set": {"verified": True, "ip": ip, "user_id": str(user), "guild_id": guild_id}},
                 upsert=True
             )
             
