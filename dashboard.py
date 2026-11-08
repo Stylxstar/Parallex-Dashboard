@@ -28,6 +28,9 @@ def render_template(filename: str, context: dict = None):
             html = html.replace(f"{{{{ {key} }}}}", value)
     return HTMLResponse(html)
 
+# ==========================================
+# PAGES
+# ==========================================
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return render_template("index.html")
@@ -36,6 +39,9 @@ async def home(request: Request):
 async def terms(request: Request):
     return render_template("terms.html")
 
+# ==========================================
+# VERIFICATION
+# ==========================================
 @app.get("/verify/{guild_id}", response_class=HTMLResponse)
 async def verify_page(request: Request, guild_id: str, session: str = None, user: str = None):
     if not session or not user or verification_sessions is None:
