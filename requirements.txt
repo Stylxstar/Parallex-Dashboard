@@ -4,3 +4,6 @@ itsdangerous
 jinja2
 python-multipart
 httpx
+pymongo
+dnspython
+fastapi-ipware
