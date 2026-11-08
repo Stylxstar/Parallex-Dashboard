@@ -4,11 +4,11 @@ from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from pymongo import MongoClient
-from fastapi_ipware import IPWare
+from fastapi_ipware import IpWare  # FIXED: Lowercase 'p'
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="super-secret-parallex-key-change-me")
-ipware = IPWare()
+ipware = IpWare() # FIXED: Lowercase 'p'
 
 CLIENT_ID = os.getenv("CLIENT_ID", "YOUR_CLIENT_ID_HERE")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET", "YOUR_CLIENT_SECRET_HERE")
@@ -20,7 +20,7 @@ if MONGO_URI:
     client = MongoClient(MONGO_URI)
     db = client["parallex"]
     verify_config = db["verify_config"]
-    verified_users = db["verified_users"] # NEW: Stores verified users and their IPs
+    verified_users = db["verified_users"] # Stores verified users and their IPs
 else:
     print("WARNING: No MONGO_URI found.")
     verify_config = None
