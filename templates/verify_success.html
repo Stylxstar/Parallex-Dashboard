@@ -8,13 +8,7 @@
     <style>
         body { font-family: 'Outfit', sans-serif; background-color: #050510; }
         .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            width: 48px; height: 48px;
-            border-radius: 50%;
-            border-left-color: #57F287;
-            animation: spin 1s ease infinite;
-        }
+        .spinner { border: 4px solid rgba(255, 255, 255, 0.1); width: 48px; height: 48px; border-radius: 50%; border-left-color: #57F287; animation: spin 1s ease infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .hidden { display: none; }
     </style>
@@ -22,24 +16,24 @@
 <body class="text-white flex items-center justify-center h-screen">
     <div class="glass p-12 rounded-3xl shadow-2xl text-center max-w-md border border-green-500/30 w-full">
         
-        <!-- Loading State -->
         <div id="loading-state">
             <div class="flex justify-center mb-6"><div class="spinner"></div></div>
             <h1 class="text-3xl font-bold mb-4 text-white">Verifying...</h1>
             <p class="text-gray-400">Checking your IP and linking your account...</p>
         </div>
 
-        <!-- Success State -->
         <div id="success-state" class="hidden">
             <div class="text-6xl mb-6">✅</div>
             <h1 class="text-3xl font-bold mb-4 text-green-400">Verified!</h1>
             <p class="text-gray-400 mb-8">You can now close this tab and return to Discord. The bot has automatically assigned your role.</p>
         </div>
 
+        <!-- DEBUG MESSAGE GOES HERE -->
+        {{ DEBUG_MESSAGE }}
+
     </div>
 
     <script>
-        // Wait 2.5 seconds to show the loading spinner, then show success
         setTimeout(() => {
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('success-state').classList.remove('hidden');
