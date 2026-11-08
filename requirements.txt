@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+itsdangerous
+jinja2
+python-multipart
+httpx
