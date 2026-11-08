@@ -1,14 +1,14 @@
 import os
 import httpx
-from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from pymongo import MongoClient
-from fastapi_ipware import IpWare  # FIXED: Lowercase 'p'
+from fastapi_ipware import IpWare
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="super-secret-parallex-key-change-me")
-ipware = IpWare() # FIXED: Lowercase 'p'
+ipware = IpWare()
 
 CLIENT_ID = os.getenv("CLIENT_ID", "YOUR_CLIENT_ID_HERE")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET", "YOUR_CLIENT_SECRET_HERE")
@@ -20,11 +20,13 @@ if MONGO_URI:
     client = MongoClient(MONGO_URI)
     db = client["parallex"]
     verify_config = db["verify_config"]
-    verified_users = db["verified_users"] # Stores verified users and their IPs
+    verified_users = db["verified_users"]
+    verification_sessions = db["verification_sessions"] # NEW: Session collection
 else:
     print("WARNING: No MONGO_URI found.")
     verify_config = None
     verified_users = None
+    verification_sessions = None
 
 def render_template(filename: str, context: dict):
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -37,7 +39,7 @@ def render_template(filename: str, context: dict):
     return HTMLResponse(html)
 
 # ==========================================
-# ROUTES
+# DASHBOARD ROUTES
 # ==========================================
 
 @app.get("/", response_class=HTMLResponse)
@@ -48,7 +50,6 @@ async def home(request: Request):
 
 @app.get("/login")
 async def login(request: Request):
-    # Check if there is a 'next' parameter (e.g. to redirect back to verification)
     next_url = request.query_params.get("next", "/dashboard")
     request.session["next_url"] = next_url
     
@@ -134,44 +135,43 @@ async def save_settings(request: Request, guild_id: str, verified_role: str = Fo
     return RedirectResponse(f"/manage/{guild_id}?saved=true", status_code=303)
 
 # ==========================================
-# WEB VERIFICATION ROUTES
+# AUTOMATIC WEB VERIFICATION ROUTE
 # ==========================================
 
 @app.get("/verify/{guild_id}", response_class=HTMLResponse)
-async def verify_page(request: Request, guild_id: str):
-    user = request.session.get("user")
-    if not user:
-        # Force login if not logged in
-        return RedirectResponse(f"/login?next=/verify/{guild_id}")
-    
-    # 1. Get the user's IP address
-    ip, _ = ipware.get_client_ip(request)
-    
-    # 2. Check if this IP is already used by someone else in this guild (Alt Check)
-    if verified_users is not None:
-        existing_alt = verified_users.find_one({"guild_id": guild_id, "ip": ip})
-        if existing_alt and existing_alt["user_id"] != user["id"]:
-            # IP Match found! Block them.
-            return render_template("verify_failed.html", {"REASON": "Your IP address matches another verified account. Please contact staff."})
-    
-    # 3. Save them as verified in the database
-    if verified_users is not None:
-        verified_users.update_one(
-            {"guild_id": guild_id, "user_id": user["id"]},
-            {"$set": {"ip": ip, "username": user["username"], "verified": True}},
-            upsert=True
-        )
+async def verify_page(request: Request, guild_id: str, session: str = None, user: str = None):
+    try:
+        # 1. Grab IP address
+        ip_result = ipware.get_client_ip(request)
+        ip = ip_result[0] if ip_result else "Unknown_IP"
         
-    return render_template("verify_success.html", {"GUILD_NAME": "the server"})
-
-# API Endpoint for the bot to check if a user passed
-@app.get("/api/check_verified/{guild_id}/{user_id}")
-async def check_verified(guild_id: str, user_id: str):
-    if verified_users is None:
-        return {"verified": False}
-    
-    record = verified_users.find_one({"guild_id": guild_id, "user_id": user_id})
-    return {"verified": record is not None}
+        # 2. If we have a session ID and user ID from the Discord link
+        if session and user and verified_users is not None and verification_sessions is not None:
+            
+            # Check if this IP is used by another user (Alt detection)
+            existing_alt = verified_users.find_one({"guild_id": guild_id, "ip": ip})
+            if existing_alt and existing_alt["user_id"] != user:
+                return render_template("verify_failed.html", {"REASON": "Your IP address matches another verified account. Please contact staff."})
+            
+            # Save to verified_users (for IP tracking)
+            verified_users.update_one(
+                {"guild_id": guild_id, "user_id": user},
+                {"$set": {"ip": ip, "verified": True}},
+                upsert=True
+            )
+            
+            # Save to verification_sessions (for the bot's polling task)
+            verification_sessions.update_one(
+                {"_id": session},
+                {"$set": {"verified": True, "ip": ip, "user_id": user, "guild_id": guild_id}},
+                upsert=True
+            )
+            
+        return render_template("verify_success.html", {"GUILD_NAME": "the server"})
+        
+    except Exception as e:
+        print(f"Verification Error: {e}")
+        return HTMLResponse(f"An internal error occurred: {e}", status_code=500)
 
 @app.get("/logout")
 async def logout(request: Request):
