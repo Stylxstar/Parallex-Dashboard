@@ -1,41 +1,36 @@
 import os
-import json
 import httpx
-from pathlib import Path
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
+from pymongo import MongoClient
+from fastapi_ipware import IPWare
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="super-secret-parallex-key-change-me")
+ipware = IPWare()
 
 CLIENT_ID = os.getenv("CLIENT_ID", "YOUR_CLIENT_ID_HERE")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET", "YOUR_CLIENT_SECRET_HERE")
 REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/callback")
-
 DISCORD_API_BASE = "https://discord.com/api/v10"
 
-# Data paths
-DATA_DIR = Path("data")
-CONFIG_PATH = DATA_DIR / "verify_config.json"
+MONGO_URI = os.getenv("MONGO_URI")
+if MONGO_URI:
+    client = MongoClient(MONGO_URI)
+    db = client["parallex"]
+    verify_config = db["verify_config"]
+    verified_users = db["verified_users"] # NEW: Stores verified users and their IPs
+else:
+    print("WARNING: No MONGO_URI found.")
+    verify_config = None
+    verified_users = None
 
-def load_db():
-    if not CONFIG_PATH.exists():
-        return {}
-    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-
-def save_db(data):
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
-# Custom HTML Reader (Bypasses Jinja2 completely)
 def render_template(filename: str, context: dict):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(base_dir, "templates", filename)
     with open(file_path, "r", encoding="utf-8") as f:
         html = f.read()
-    
-    # Simple string replacement for variables
     for key, value in context.items():
         if isinstance(value, str):
             html = html.replace(f"{{{{ {key} }}}}", value)
@@ -48,13 +43,15 @@ def render_template(filename: str, context: dict):
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     user = request.session.get("user")
-    # If logged in, show dashboard link, else show login link
     login_html = '<a href="/dashboard" class="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-lg font-semibold transition">Go to Dashboard</a>' if user else '<a href="/login" class="bg-indigo-500 hover:bg-indigo-600 px-6 py-3 rounded-lg font-semibold transition">Login with Discord</a>'
-    
     return render_template("index.html", {"LOGIN_BUTTON": login_html})
 
 @app.get("/login")
-async def login():
+async def login(request: Request):
+    # Check if there is a 'next' parameter (e.g. to redirect back to verification)
+    next_url = request.query_params.get("next", "/dashboard")
+    request.session["next_url"] = next_url
+    
     auth_url = (
         f"{DISCORD_API_BASE}/oauth2/authorize?client_id={CLIENT_ID}"
         f"&redirect_uri={REDIRECT_URI}&response_type=code&scope=identify%20guilds"
@@ -80,14 +77,15 @@ async def callback(request: Request, code: str):
         guilds = [g for g in guilds_res.json() if (int(g["permissions"]) & 0x8) == 0x8 or (int(g["permissions"]) & 0x20) == 0x20]
 
     request.session["user"] = {"id": user["id"], "username": user["username"], "guilds": guilds}
-    return RedirectResponse("/dashboard")
+    
+    next_url = request.session.get("next_url", "/dashboard")
+    return RedirectResponse(next_url)
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
     user = request.session.get("user")
     if not user: return RedirectResponse("/")
     
-    # Build the server cards
     cards = ""
     for guild in user["guilds"]:
         cards += f'''
@@ -101,7 +99,6 @@ async def dashboard(request: Request):
             </div>
         </a>
         '''
-    
     return render_template("dashboard.html", {"USERNAME": user['username'], "SERVER_CARDS": cards})
 
 @app.get("/manage/{guild_id}", response_class=HTMLResponse)
@@ -110,8 +107,8 @@ async def manage_server(request: Request, guild_id: str):
     if not user: return RedirectResponse("/")
     
     guild_name = next((g["name"] for g in user["guilds"] if g["id"] == guild_id), "Unknown Server")
-    db = load_db()
-    config = db.get(guild_id, {})
+    config = verify_config.find_one({"_id": guild_id}) if verify_config is not None else {}
+    config = config or {}
     
     return render_template("manage.html", {
         "GUILD_NAME": guild_name, 
@@ -125,14 +122,56 @@ async def save_settings(request: Request, guild_id: str, verified_role: str = Fo
     user = request.session.get("user")
     if not user: return RedirectResponse("/")
     
-    db = load_db()
-    if guild_id not in db: db[guild_id] = {}
-    
-    db[guild_id]["verified_role_id"] = int(verified_role) if verified_role and verified_role.isdigit() else None
-    db[guild_id]["log_channel_id"] = int(log_channel) if log_channel and log_channel.isdigit() else None
-    
-    save_db(db)
+    if verify_config is not None:
+        verify_config.update_one(
+            {"_id": guild_id},
+            {"$set": {
+                "verified_role_id": int(verified_role) if verified_role and verified_role.isdigit() else None,
+                "log_channel_id": int(log_channel) if log_channel and log_channel.isdigit() else None
+            }},
+            upsert=True
+        )
     return RedirectResponse(f"/manage/{guild_id}?saved=true", status_code=303)
+
+# ==========================================
+# WEB VERIFICATION ROUTES
+# ==========================================
+
+@app.get("/verify/{guild_id}", response_class=HTMLResponse)
+async def verify_page(request: Request, guild_id: str):
+    user = request.session.get("user")
+    if not user:
+        # Force login if not logged in
+        return RedirectResponse(f"/login?next=/verify/{guild_id}")
+    
+    # 1. Get the user's IP address
+    ip, _ = ipware.get_client_ip(request)
+    
+    # 2. Check if this IP is already used by someone else in this guild (Alt Check)
+    if verified_users is not None:
+        existing_alt = verified_users.find_one({"guild_id": guild_id, "ip": ip})
+        if existing_alt and existing_alt["user_id"] != user["id"]:
+            # IP Match found! Block them.
+            return render_template("verify_failed.html", {"REASON": "Your IP address matches another verified account. Please contact staff."})
+    
+    # 3. Save them as verified in the database
+    if verified_users is not None:
+        verified_users.update_one(
+            {"guild_id": guild_id, "user_id": user["id"]},
+            {"$set": {"ip": ip, "username": user["username"], "verified": True}},
+            upsert=True
+        )
+        
+    return render_template("verify_success.html", {"GUILD_NAME": "the server"})
+
+# API Endpoint for the bot to check if a user passed
+@app.get("/api/check_verified/{guild_id}/{user_id}")
+async def check_verified(guild_id: str, user_id: str):
+    if verified_users is None:
+        return {"verified": False}
+    
+    record = verified_users.find_one({"guild_id": guild_id, "user_id": user_id})
+    return {"verified": record is not None}
 
 @app.get("/logout")
 async def logout(request: Request):
