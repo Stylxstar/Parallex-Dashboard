@@ -14,17 +14,12 @@
     </style>
 </head>
 <body class="text-white flex items-center justify-center h-screen">
-    <div class="glass p-12 rounded-3xl shadow-2xl text-center max-w-md border border-green-500/30 w-full relative">
+    <div class="glass p-12 rounded-3xl shadow-2xl text-center max-w-md border border-green-500/30 w-full">
         
-        <!-- DEBUG TEXT (Moved to top left corner) -->
-        <div class="absolute top-2 left-2 text-xs text-red-500 font-mono">
-            {{ DEBUG_MESSAGE }}
-        </div>
-
         <div id="loading-state">
             <div class="flex justify-center mb-6"><div class="spinner"></div></div>
             <h1 class="text-3xl font-bold mb-4 text-white">Verifying...</h1>
-            <p class="text-gray-400">Checking your IP and linking your account...</p>
+            <p class="text-gray-400">Linking your account to Discord...</p>
         </div>
 
         <div id="success-state" class="hidden">
