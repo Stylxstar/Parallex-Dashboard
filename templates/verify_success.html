@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Verifying...</title>
+    <title>Verification Successful</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -33,19 +33,18 @@
         <div id="success-state" class="hidden">
             <div class="text-6xl mb-6">✅</div>
             <h1 class="text-3xl font-bold mb-4 text-green-400">Verified!</h1>
-            <p class="text-gray-400 mb-8">You can now close this tab and return to Discord. The bot will assign your role automatically.</p>
-            <a href="discord://" class="bg-indigo-600 hover:bg-indigo-500 px-8 py-3 rounded-xl font-bold transition">Return to Discord</a>
+            <p class="text-gray-400 mb-8">You can now close this tab and return to Discord. The bot has automatically assigned your role.</p>
         </div>
 
     </div>
 
     <script>
-        // Wait 3 seconds to show the loading spinner, then show success
+        // Wait 2.5 seconds to show the loading spinner, then show success
         setTimeout(() => {
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('success-state').classList.remove('hidden');
             document.title = "Verified!";
-        }, 3000);
+        }, 2500);
     </script>
 </body>
 </html>
