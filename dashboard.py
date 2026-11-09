@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pymongo import MongoClient
 from fastapi_ipware import IpWare
+import time
 
 app = FastAPI()
 ipware = IpWare()
@@ -46,13 +47,26 @@ async def verify_page(request: Request, guild_id: str, session: str = None, user
         return render_template("verify_invalid.html", {"GUILD_ID": guild_id})
         
     try:
+        # 1. Check if the session exists
         record = verification_sessions.find_one({"_id": str(session)})
-        if not record or record.get("verified"):
+        if not record:
             return render_template("verify_invalid.html", {"GUILD_ID": guild_id})
 
+        # 2. Check if it has already been used
+        if record.get("used"):
+            return render_template("verify_invalid.html", {"GUILD_ID": guild_id})
+
+        # 3. Check if it has expired (2 minutes = 120 seconds)
+        created_at = record.get("created_at", 0)
+        if time.time() - created_at > 120:
+            verification_sessions.delete_one({"_id": str(session)})
+            return render_template("verify_invalid.html", {"GUILD_ID": guild_id})
+
+        # 4. Grab the IP
         ip_result = ipware.get_client_ip(request)
         ip = ip_result[0] if ip_result else "Unknown_IP"
         
+        # 5. Check for Alt Accounts
         if verified_users is not None and ip != "Unknown_IP":
             existing_alt = verified_users.find_one({"guild_id": guild_id, "ip": ip})
             if existing_alt and str(existing_alt.get("user_id")) != str(user):
@@ -67,10 +81,12 @@ async def verify_page(request: Request, guild_id: str, session: str = None, user
                 upsert=True
             )
 
+        # 6. Mark as USED and verified
         verification_sessions.update_one(
             {"_id": str(session)},
-            {"$set": {"verified": True}}
+            {"$set": {"verified": True, "used": True}}
         )
+        
         print(f"✅ Verified {user} (IP: {ip})")
     except Exception as e:
         print(f"❌ Database Error: {e}")
