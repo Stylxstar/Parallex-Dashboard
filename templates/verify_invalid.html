@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Checking Link...</title>
+    <title>Invalid Link</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
@@ -30,7 +30,7 @@
             <div class="text-6xl mb-6">⚠️</div>
             <h1 class="text-3xl font-bold mb-4 text-red-400">Invalid Link</h1>
             <p class="text-gray-400 mb-8">This verification link has expired or has already been used. Please click the Verify button in Discord to generate a new one.</p>
-            <a href="discord://discord.com/channels/{{ GUILD_ID }}" class="inline-block bg-gray-700 hover:bg-gray-600 px-8 py-3 rounded-xl font-bold transition">Return to Discord</a>
+            <a href="discord://discord.com/channels/{{ GUILD_ID }}/{{ CHANNEL_ID }}" class="inline-block bg-gray-700 hover:bg-gray-600 px-8 py-3 rounded-xl font-bold transition">Return to Discord</a>
         </div>
 
     </div>
