@@ -2,16 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Verification Failed</title>
+    <title>Verification Blocked</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; background-color: #050510; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1); }
+    </style>
 </head>
-<body class="bg-[#050510] text-white flex items-center justify-center h-screen font-sans">
-    <div class="glass p-12 rounded-3xl shadow-2xl text-center max-w-md border border-red-500/30">
+<body class="text-white flex items-center justify-center h-screen">
+    <div class="glass p-12 rounded-3xl shadow-2xl text-center max-w-md border border-red-500/30 w-full">
         <div class="text-6xl mb-6">⛔</div>
         <h1 class="text-3xl font-bold mb-4 text-red-400">Verification Blocked</h1>
         <p class="text-gray-400 mb-8">{{ REASON }}</p>
-        <a href="discord://" class="bg-gray-700 hover:bg-gray-600 px-8 py-3 rounded-xl font-bold transition">Return to Discord</a>
+        
+        <div class="pt-4 border-t border-white/10">
+            <a href="/terms" target="_blank" class="text-sm text-indigo-400 hover:text-indigo-300 underline">
+                View Terms of Service
+            </a>
+        </div>
     </div>
 </body>
 </html>
