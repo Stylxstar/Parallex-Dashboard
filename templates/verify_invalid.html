@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Invalid Link</title>
+    <title>Checking Link...</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
@@ -10,19 +10,38 @@
         body { font-family: 'Outfit', sans-serif; background-color: #050510; overflow-x: hidden; margin: 0; }
         #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
         .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .spinner { border: 4px solid rgba(255, 255, 255, 0.1); width: 48px; height: 48px; border-radius: 50%; border-left-color: #ED4245; animation: spin 1s ease infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden { display: none; }
     </style>
 </head>
 <body class="text-white flex items-center justify-center h-screen">
     <div id="canvas-container"></div>
 
     <div class="glass p-12 rounded-3xl shadow-2xl text-center max-w-md border border-red-500/30 w-full relative z-10">
-        <div class="text-6xl mb-6">⚠️</div>
-        <h1 class="text-3xl font-bold mb-4 text-red-400">Invalid Link</h1>
-        <p class="text-gray-400 mb-8">This verification link has expired or has already been used. Please click the Verify button in Discord to generate a new one.</p>
-        <a href="discord://discord.com/channels/{{ GUILD_ID }}" class="inline-block bg-gray-700 hover:bg-gray-600 px-8 py-3 rounded-xl font-bold transition">Return to Discord</a>
+        
+        <div id="loading-state">
+            <div class="flex justify-center mb-6"><div class="spinner"></div></div>
+            <h1 class="text-3xl font-bold mb-4 text-white">Checking Link...</h1>
+            <p class="text-gray-400">Verifying session validity...</p>
+        </div>
+
+        <div id="invalid-state" class="hidden">
+            <div class="text-6xl mb-6">⚠️</div>
+            <h1 class="text-3xl font-bold mb-4 text-red-400">Invalid Link</h1>
+            <p class="text-gray-400 mb-8">This verification link has expired or has already been used. Please click the Verify button in Discord to generate a new one.</p>
+            <a href="discord://discord.com/channels/{{ GUILD_ID }}" class="inline-block bg-gray-700 hover:bg-gray-600 px-8 py-3 rounded-xl font-bold transition">Return to Discord</a>
+        </div>
+
     </div>
 
     <script>
+        setTimeout(() => {
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('invalid-state').classList.remove('hidden');
+            document.title = "Invalid Link";
+        }, 1500);
+
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
