@@ -1,61 +1,99 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Alt Account Detected</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Outfit', sans-serif; background-color: #050510; overflow-x: hidden; margin: 0; }
-        #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
-        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1); }
-    </style>
-</head>
-<body class="text-white flex items-center justify-center h-screen">
-    <div id="canvas-container"></div>
+import os
+import httpx
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from pymongo import MongoClient
+from fastapi_ipware import IpWare
+import time
 
-    <div class="glass p-12 rounded-3xl shadow-2xl text-center max-w-md border border-red-500/30 w-full relative z-10">
-        <div class="text-6xl mb-6">⛔</div>
-        <h1 class="text-3xl font-bold mb-4 text-red-400">Verification Blocked</h1>
-        <p class="text-gray-400 mb-8">{{ REASON }}</p>
-        <a href="discord://discord.com/channels/{{ GUILD_ID }}" class="inline-block bg-gray-700 hover:bg-gray-600 px-8 py-3 rounded-xl font-bold transition">Return to Discord</a>
-    </div>
+app = FastAPI()
+ipware = IpWare()
 
-    <script>
-        const container = document.getElementById('canvas-container');
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        container.appendChild(renderer.domElement);
-        const geometry = new THREE.BufferGeometry();
-        const particlesCount = 1500;
-        const posArray = new Float32Array(particlesCount * 3);
-        for(let i = 0; i < particlesCount * 3; i++) { posArray[i] = (Math.random() - 0.5) * 15; }
-        geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const material = new THREE.PointsMaterial({ size: 0.015, color: 0x5865F2, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
-        const particlesMesh = new THREE.Points(geometry, material);
-        scene.add(particlesMesh);
-        camera.position.z = 3;
-        let mouseX = 0; let mouseY = 0;
-        document.addEventListener('mousemove', (e) => { mouseX = e.clientX / window.innerWidth - 0.5; mouseY = e.clientY / window.innerHeight - 0.5; });
-        const clock = new THREE.Clock();
-        function animate() {
-            requestAnimationFrame(animate);
-            const elapsedTime = clock.getElapsedTime();
-            particlesMesh.rotation.y = elapsedTime * 0.05;
-            particlesMesh.rotation.x = elapsedTime * 0.02;
-            particlesMesh.rotation.y += mouseX * 0.1;
-            particlesMesh.rotation.x += mouseY * 0.1;
-            renderer.render(scene, camera);
-        }
-        animate();
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    </script>
-</body>
-</html>
+MONGO_URI = os.getenv("MONGO_URI")
+if MONGO_URI:
+    client = MongoClient(MONGO_URI)
+    db = client["parallex"]
+    verification_sessions = db["verification_sessions"]
+    verified_users = db["verified_users"]
+else:
+    print("WARNING: No MONGO_URI found.")
+    verification_sessions = None
+    verified_users = None
+
+def render_template(filename: str, context: dict = None):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(base_dir, "templates", filename)
+    with open(file_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    if context:
+        for key, value in context.items():
+            html = html.replace(f"{{{{ {key} }}}}", value)
+    return HTMLResponse(html)
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return render_template("index.html")
+
+@app.get("/terms", response_class=HTMLResponse)
+async def terms(request: Request):
+    return render_template("terms.html")
+
+# ==========================================
+# WEB VERIFICATION ENGINE
+# ==========================================
+@app.get("/verify/{guild_id}", response_class=HTMLResponse)
+async def verify_page(request: Request, guild_id: str, session: str = None, user: str = None):
+    if not session or not user or verification_sessions is None:
+        return render_template("verify_invalid.html", {"GUILD_ID": guild_id})
+        
+    try:
+        # 1. Check if the session exists
+        record = verification_sessions.find_one({"_id": str(session)})
+        if not record:
+            return render_template("verify_invalid.html", {"GUILD_ID": guild_id})
+
+        # 2. Check if it has already been used
+        if record.get("used"):
+            return render_template("verify_invalid.html", {"GUILD_ID": guild_id})
+
+        # 3. Check if it has expired (2 minutes = 120 seconds)
+        created_at = record.get("created_at", 0)
+        if time.time() - created_at > 120:
+            verification_sessions.delete_one({"_id": str(session)})
+            return render_template("verify_invalid.html", {"GUILD_ID": guild_id})
+
+        # 4. Grab the IP
+        ip_result = ipware.get_client_ip(request)
+        ip = ip_result[0] if ip_result else "Unknown_IP"
+        
+        # 5. Check for Alt Accounts
+        if verified_users is not None and ip != "Unknown_IP":
+            existing_alt = verified_users.find_one({"guild_id": guild_id, "ip": ip})
+            if existing_alt and str(existing_alt.get("user_id")) != str(user):
+                return render_template("verify_failed.html", {
+                    "REASON": "Your IP address is linked to another verified account. Alt accounts are not allowed.",
+                    "GUILD_ID": guild_id
+                })
+                
+            verified_users.update_one(
+                {"guild_id": guild_id, "user_id": str(user)},
+                {"$set": {"ip": ip}},
+                upsert=True
+            )
+
+        # 6. Mark as USED and verified
+        verification_sessions.update_one(
+            {"_id": str(session)},
+            {"$set": {"verified": True, "used": True}}
+        )
+        
+        print(f"✅ Verified {user} (IP: {ip})")
+    except Exception as e:
+        print(f"❌ Database Error: {e}")
+        return HTMLResponse(f"<h1 style='color:red; text-align:center; margin-top:50px;'>An error occurred.</h1>")
+        
+    return render_template("verify_success.html", {"GUILD_ID": guild_id})
+
+@app.get("/ping")
+async def ping():
+    return {"status": "ok", "database": "connected" if verification_sessions is not None else "disconnected"}
