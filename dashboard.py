@@ -39,28 +39,28 @@ async def terms(request: Request):
     return render_template("terms.html")
 
 # ==========================================
-# WEB VERIFICATION ENGINE
+# WEB VERIFICATION ENGINE (SECURE)
 # ==========================================
 @app.get("/verify/{guild_id}", response_class=HTMLResponse)
-async def verify_page(request: Request, guild_id: str, session: str = None, user: str = None):
+async def verify_page(request: Request, guild_id: str, session: str = None, user: str = None, channel: str = None):
     if not session or not user or verification_sessions is None:
-        return render_template("verify_invalid.html", {"GUILD_ID": guild_id})
+        return render_template("verify_invalid.html", {"GUILD_ID": guild_id, "CHANNEL_ID": channel or "0"})
         
     try:
         # 1. Check if the session exists
         record = verification_sessions.find_one({"_id": str(session)})
         if not record:
-            return render_template("verify_invalid.html", {"GUILD_ID": guild_id})
+            return render_template("verify_invalid.html", {"GUILD_ID": guild_id, "CHANNEL_ID": channel or "0"})
 
         # 2. Check if it has already been used
         if record.get("used"):
-            return render_template("verify_invalid.html", {"GUILD_ID": guild_id})
+            return render_template("verify_invalid.html", {"GUILD_ID": guild_id, "CHANNEL_ID": channel or "0"})
 
         # 3. Check if it has expired (2 minutes = 120 seconds)
         created_at = record.get("created_at", 0)
         if time.time() - created_at > 120:
             verification_sessions.delete_one({"_id": str(session)})
-            return render_template("verify_invalid.html", {"GUILD_ID": guild_id})
+            return render_template("verify_invalid.html", {"GUILD_ID": guild_id, "CHANNEL_ID": channel or "0"})
 
         # 4. Grab the IP
         ip_result = ipware.get_client_ip(request)
@@ -72,7 +72,8 @@ async def verify_page(request: Request, guild_id: str, session: str = None, user
             if existing_alt and str(existing_alt.get("user_id")) != str(user):
                 return render_template("verify_failed.html", {
                     "REASON": "Your IP address is linked to another verified account. Alt accounts are not allowed.",
-                    "GUILD_ID": guild_id
+                    "GUILD_ID": guild_id,
+                    "CHANNEL_ID": channel or "0"
                 })
                 
             verified_users.update_one(
@@ -92,7 +93,7 @@ async def verify_page(request: Request, guild_id: str, session: str = None, user
         print(f"❌ Database Error: {e}")
         return HTMLResponse(f"<h1 style='color:red; text-align:center; margin-top:50px;'>An error occurred.</h1>")
         
-    return render_template("verify_success.html", {"GUILD_ID": guild_id})
+    return render_template("verify_success.html", {"GUILD_ID": guild_id, "CHANNEL_ID": channel or "0"})
 
 @app.get("/ping")
 async def ping():
