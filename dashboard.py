@@ -59,10 +59,15 @@ async def verify_page(request: Request, guild_id: str, session: str = None, user
         if verified_users is not None and ip != "Unknown_IP":
             existing_alt = verified_users.find_one({"guild_id": guild_id, "ip": ip})
             if existing_alt and str(existing_alt.get("user_id")) != str(user):
-                # Set BLOCKED flag so bot picks it up
+                # Set BLOCKED flag so bot picks it up AND save the alt's ID!
                 verification_sessions.update_one(
                     {"_id": str(session)},
-                    {"$set": {"blocked": True, "blocked_reason": "Alt Account / VPN Detected", "used": True}}
+                    {"$set": {
+                        "blocked": True, 
+                        "blocked_reason": "Alt Account / VPN Detected", 
+                        "alt_id": str(existing_alt.get("user_id")), # <--- FIXED: Passes Alt ID to Bot
+                        "used": True
+                    }}
                 )
                 return render_template("verify_failed.html", {
                     "REASON": "Your IP address is linked to another verified account. Alt accounts are not allowed.",
